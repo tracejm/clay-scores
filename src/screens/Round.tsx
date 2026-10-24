@@ -44,11 +44,6 @@ export function RoundScreen({ roundId }: { roundId: number }) {
   const totalBreakage = stations.reduce((s, st) => s + st.breakageCount, 0)
   const rowsFor = (stationId: number) => targets.filter((t) => t.stationId === stationId)
 
-  function exportEmail() {
-    const { subject, body } = buildEmail({ round, course, shooters, stations, targets })
-    window.location.href = mailtoUrl(subject, body)
-  }
-
   return (
     <>
       <TopBar title={`${course?.courseName ?? 'Round'} · ${formatDateTime(round.roundDate)}`} />
@@ -88,10 +83,7 @@ export function RoundScreen({ roundId }: { roundId: number }) {
           </ul>
         </section>
 
-        <button className="btn btn-primary btn-xl" onClick={exportEmail}>
-          ✉ Email Round Results
-        </button>
-        <EmailPreview text={() => buildEmail({ round, course, shooters, stations, targets })} />
+        <EmailExport email={buildEmail({ round, course, shooters, stations, targets })} />
       </Screen>
     </>
   )
@@ -211,28 +203,82 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
   )
 }
 
-/** Shows the email text on screen, with a Copy button (handy if no mail app opens). */
-function EmailPreview({ text }: { text: () => { subject: string; body: string } }) {
+/**
+ * True when the app is shown inside another page's frame (e.g. the claude.ai
+ * test preview). Such frames can't open the mail app, so we show the text instead.
+ */
+function inFrame(): boolean {
+  try {
+    return window.self !== window.top
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Email export.
+ *  - "Email Round Results" is a real mailto: link. The phone hands it to the
+ *    default mail app; the app page itself is never replaced.
+ *  - "Share" opens the phone's share menu (Gmail, Messages, WhatsApp...).
+ *  - "Show email text" displays the text with a Copy button.
+ */
+function EmailExport({ email }: { email: { subject: string; body: string } }) {
+  const framed = inFrame()
+  const canShare = !framed && typeof navigator.share === 'function'
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  if (!open) {
-    return <button className="btn btn-secondary" onClick={() => setOpen(true)}>Show email text</button>
+  const full = `${email.subject}\n\n${email.body}`
+
+  async function share() {
+    try {
+      await navigator.share({ title: email.subject, text: email.body })
+    } catch {
+      /* user closed the share menu: nothing to do */
+    }
   }
-  const { subject, body } = text()
-  const full = `${subject}\n\n${body}`
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(full)
+      setCopied(true)
+    } catch {
+      // Clipboard blocked: select the text so the user can copy it by hand.
+      const pre = document.querySelector('.email-preview pre')
+      if (pre) window.getSelection()?.selectAllChildren(pre)
+    }
+  }
+
   return (
-    <section className="email-preview">
-      <div className="actions">
-        <button className="btn btn-secondary" onClick={() => setOpen(false)}>Hide</button>
-        <button
-          className="btn btn-primary"
-          onClick={() => navigator.clipboard?.writeText(full).then(() => setCopied(true), () => setCopied(false))}
-        >
-          {copied ? 'Copied ✓' : 'Copy text'}
+    <div className="email-export">
+      {framed ? (
+        <button className="btn btn-primary btn-xl" onClick={() => setOpen(true)}>
+          ✉ Email Round Results
         </button>
-      </div>
-      <pre>{full}</pre>
-    </section>
+      ) : (
+        <a className="btn btn-primary btn-xl btn-link" href={mailtoUrl(email.subject, email.body)}>
+          ✉ Email Round Results
+        </a>
+      )}
+      {canShare && (
+        <button className="btn btn-secondary" onClick={share}>Share results…</button>
+      )}
+      {!open && <button className="btn btn-secondary" onClick={() => setOpen(true)}>Show email text</button>}
+      {open && (
+        <section className="email-preview">
+          {framed && (
+            <p className="hint">
+              The test preview can't open your mail app. In the installed app this button opens a new email.
+              For now, copy the text below.
+            </p>
+          )}
+          <div className="actions">
+            <button className="btn btn-secondary" onClick={() => setOpen(false)}>Hide</button>
+            <button className="btn btn-primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy text'}</button>
+          </div>
+          <pre>{full}</pre>
+        </section>
+      )}
+    </div>
   )
 }
 

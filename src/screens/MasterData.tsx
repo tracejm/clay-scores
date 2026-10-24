@@ -33,7 +33,7 @@ export function NewCourse() {
           <ErrorBox message={error} />
           <Actions>
             <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save</button>
+            <button type="button" className="btn btn-primary" onClick={submit}>Save</button>
           </Actions>
         </form>
       </Screen>
@@ -66,7 +66,7 @@ export function NewShooter() {
           <ErrorBox message={error} />
           <Actions>
             <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save</button>
+            <button type="button" className="btn btn-primary" onClick={submit}>Save</button>
           </Actions>
         </form>
       </Screen>

@@ -89,7 +89,7 @@ export function NewRound() {
             <ErrorBox message={error} />
             <Actions>
               <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Save</button>
+              <button type="button" className="btn btn-primary" onClick={submit}>Save</button>
             </Actions>
           </form>
         )}
@@ -132,7 +132,7 @@ export function OpenRound() {
             </Field>
             <Actions>
               <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Open</button>
+              <button type="button" className="btn btn-primary" onClick={() => go.round(Number(selected))}>Open</button>
             </Actions>
           </form>
         )}
