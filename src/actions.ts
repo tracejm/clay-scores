@@ -8,23 +8,40 @@ import { blankResults, countRecorded, nextResult, resizeResults, squadOf, toMinu
 /** Thrown for problems the user can fix; the message is shown on screen. */
 export class UserError extends Error {}
 
-export async function saveCourse(courseName: string, location: string): Promise<number> {
-  const name = courseName.trim()
-  const loc = location.trim()
+/**
+ * Create a course, or update one when `id` is given. Rounds point to the
+ * course by id, so a correction shows up everywhere automatically.
+ */
+export async function saveCourse(courseName: string, location: string, id?: number): Promise<number> {
+  const name = courseName.trim().replace(/\s+/g, ' ')
+  const loc = location.trim().replace(/\s+/g, ' ')
   if (!name) throw new UserError('Please enter a course name.')
   const dup = await db.courses
-    .filter((c) => c.courseName.toLowerCase() === name.toLowerCase() && c.location.toLowerCase() === loc.toLowerCase())
+    .filter((c) => c.id !== id && c.courseName.toLowerCase() === name.toLowerCase() && c.location.toLowerCase() === loc.toLowerCase())
     .first()
   if (dup) throw new UserError(`"${name}" at "${loc || 'no location'}" already exists.`)
+  if (id != null) {
+    await db.courses.update(id, { courseName: name, location: loc })
+    return id
+  }
   return db.courses.add({ courseName: name, location: loc })
 }
 
-export async function saveShooter(rawName: string): Promise<number> {
+/**
+ * Create a shooter, or rename one when `id` is given. Names must be unique,
+ * ignoring capitals (fixing "jay" to "Jay" is allowed).
+ */
+export async function saveShooter(rawName: string, id?: number): Promise<number> {
   const name = rawName.trim().replace(/\s+/g, ' ')
   if (!name) throw new UserError('Please enter a shooter name.')
   const nameKey = name.toLowerCase()
-  if (await db.shooters.where('nameKey').equals(nameKey).first()) {
-    throw new UserError(`A shooter named "${name}" already exists. Please change the name and try again.`)
+  const dup = await db.shooters.where('nameKey').equals(nameKey).first()
+  if (dup && dup.id !== id) {
+    throw new UserError(`A shooter named "${dup.name}" already exists. Please change the name and try again.`)
+  }
+  if (id != null) {
+    await db.shooters.update(id, { name, nameKey })
+    return id
   }
   return db.shooters.add({ name, nameKey })
 }

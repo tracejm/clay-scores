@@ -23,7 +23,11 @@ export function navigate(path: string, replace = false) {
 
 export const go = {
   home: () => navigate('/'),
+  courses: (replace = false) => navigate('/courses', replace),
+  course: (id: number) => navigate(`/course/${id}`),
   newCourse: () => navigate('/course/new'),
+  shooters: (replace = false) => navigate('/shooters', replace),
+  shooter: (id: number) => navigate(`/shooter/${id}`),
   newShooter: () => navigate('/shooter/new'),
   newRound: () => navigate('/round/new'),
   openRound: () => navigate('/round/open'),

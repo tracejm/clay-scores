@@ -48,7 +48,7 @@ src/
   ui.tsx           Shared pieces: top bar, +/- stepper, error box, toast message
   screens/
     Home.tsx         Screen 1
-    MasterData.tsx   Screens 2 & 3 (new course, new shooter)
+    MasterData.tsx   Manage Courses / Manage Shooters: lists + add/edit screens
     RoundSetup.tsx   Screens 4 & 6 (new round, open round)
     Round.tsx        Screens 7 & 8 (stations overview, individual station) + email
   index.css        The sunlight-readable dark theme
@@ -82,6 +82,11 @@ It follows your diagram, with two small adjustments:
   with targets set are listed. Breakage lists stations with at least one broken target.
 
 ### Small additions beyond the spec
+
+- **Manage Courses / Manage Shooters** (replacing Create New Course/Shooter):
+  an alphabetical list with **+ Add New** at the top; tap any entry to correct it.
+  Rounds refer to courses and shooters by id, so a correction shows up in every
+  existing round and email. Renames still enforce unique shooter names.
 
 - **‹ Station / Station ›** buttons at the bottom of each station, so you can
   walk the course without going back to the grid.

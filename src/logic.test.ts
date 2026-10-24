@@ -88,4 +88,17 @@ describe('database actions', () => {
     expect(body).toContain('Shooter 2:  Jerry T\n  Total:  0')
     expect(body).toContain('Breakage:\n    Station 1:  2')
   })
+
+  it('edits shooters and courses, keeping names unique', async () => {
+    const jay = await saveShooter('jya')
+    const gil = await saveShooter('Gil')
+    await saveShooter('Jay', jay) // fix the spelling
+    expect((await db.shooters.get(jay))!.name).toBe('Jay')
+    await saveShooter('JAY', jay) // capitals-only change is fine
+    await expect(saveShooter('jay', gil)).rejects.toThrow(/already exists/) // can't take another's name
+    const c = await saveCourse('GFCF', 'Granite Fals')
+    await saveCourse('GCFC', 'Granite Falls, WA', c)
+    expect(await db.courses.get(c)).toMatchObject({ courseName: 'GCFC', location: 'Granite Falls, WA' })
+    expect(await db.courses.count()).toBe(1)
+  })
 })

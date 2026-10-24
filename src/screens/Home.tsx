@@ -16,8 +16,8 @@ export function Home() {
       <nav className="home-menu">
         <button className="btn btn-primary btn-xl" onClick={go.newRound}>Create New Round</button>
         <button className="btn btn-primary btn-xl" onClick={go.openRound}>Open Existing Round</button>
-        <button className="btn btn-secondary btn-xl" onClick={go.newCourse}>Create New Course</button>
-        <button className="btn btn-secondary btn-xl" onClick={go.newShooter}>Create New Shooter</button>
+        <button className="btn btn-secondary btn-xl" onClick={() => go.courses()}>Manage Courses</button>
+        <button className="btn btn-secondary btn-xl" onClick={() => go.shooters()}>Manage Shooters</button>
       </nav>
       <p className="version">v{__APP_VERSION__}</p>
     </main>
