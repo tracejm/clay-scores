@@ -1,0 +1,140 @@
+/**
+ * Every change the app makes to the database goes through one of these
+ * functions. Validation rules from the spec live here.
+ */
+import { db, type Round, type TargetRow } from './db'
+import { blankResults, countRecorded, nextResult, resizeResults, squadOf, toMinute, activeCircleCount, MAX_TARGETS, MIN_TARGETS } from './logic'
+
+/** Thrown for problems the user can fix; the message is shown on screen. */
+export class UserError extends Error {}
+
+export async function saveCourse(courseName: string, location: string): Promise<number> {
+  const name = courseName.trim()
+  const loc = location.trim()
+  if (!name) throw new UserError('Please enter a course name.')
+  const dup = await db.courses
+    .filter((c) => c.courseName.toLowerCase() === name.toLowerCase() && c.location.toLowerCase() === loc.toLowerCase())
+    .first()
+  if (dup) throw new UserError(`"${name}" at "${loc || 'no location'}" already exists.`)
+  return db.courses.add({ courseName: name, location: loc })
+}
+
+export async function saveShooter(rawName: string): Promise<number> {
+  const name = rawName.trim().replace(/\s+/g, ' ')
+  if (!name) throw new UserError('Please enter a shooter name.')
+  const nameKey = name.toLowerCase()
+  if (await db.shooters.where('nameKey').equals(nameKey).first()) {
+    throw new UserError(`A shooter named "${name}" already exists. Please change the name and try again.`)
+  }
+  return db.shooters.add({ name, nameKey })
+}
+
+export interface NewRound {
+  courseId: number | null
+  roundDate: number | null
+  stationCount: number
+  shooterIds: (number | null)[] // 5 slots
+}
+
+/** Creates the round plus one empty station row per station. Returns the round id. */
+export async function createRound(input: NewRound): Promise<number> {
+  if (input.courseId == null) throw new UserError('Please select a course.')
+  if (input.roundDate == null || Number.isNaN(input.roundDate)) throw new UserError('Please choose the date and time.')
+  if (input.shooterIds[0] == null) throw new UserError('Shooter 1 is required.')
+  if (input.stationCount < 1) throw new UserError('A round needs at least 1 station.')
+  const roundDate = toMinute(input.roundDate)
+  const courseId = input.courseId
+
+  return db.transaction('rw', db.rounds, db.stations, async () => {
+    const clash = await db.rounds.where('[courseId+roundDate]').equals([courseId, roundDate]).first()
+    if (clash) {
+      throw new UserError('A round at this course with the same date and time already exists. Change the date/time, or use "Open Existing Round".')
+    }
+    const [s1, s2, s3, s4, s5] = input.shooterIds
+    const roundId = await db.rounds.add({
+      roundDate,
+      courseId,
+      stationCount: input.stationCount,
+      shooter1Id: s1!,
+      shooter2Id: s2 ?? null,
+      shooter3Id: s3 ?? null,
+      shooter4Id: s4 ?? null,
+      shooter5Id: s5 ?? null,
+    } as Round)
+    await db.stations.bulkAdd(
+      Array.from({ length: input.stationCount }, (_, i) => ({
+        roundId,
+        stationNumber: i + 1,
+        targetCount: 0,
+        breakageCount: 0,
+      })),
+    )
+    return roundId
+  })
+}
+
+/**
+ * Confirm the number of targets at a station. Creates/updates one target row
+ * per squad member. If the change would throw away recorded results, the
+ * caller is asked (via `confirmLoss`) before anything is changed.
+ */
+export async function setStationTargets(
+  stationId: number,
+  targetCount: number,
+  confirmLoss: (message: string) => boolean,
+): Promise<boolean> {
+  if (targetCount < MIN_TARGETS || targetCount > MAX_TARGETS) throw new UserError('Targets must be between 1 and 12.')
+  const station = await db.stations.get(stationId)
+  if (!station) throw new UserError('Station not found.')
+  const round = await db.rounds.get(station.roundId)
+  if (!round) throw new UserError('Round not found.')
+  const existing = await db.targets.where('stationId').equals(stationId).toArray()
+
+  const active = activeCircleCount(targetCount)
+  for (const row of existing) {
+    const lost = row.results.slice(active).filter((r) => r === 'HIT' || r === 'MISS').length
+    const keptRecorded = countRecorded(row.results.slice(0, active))
+    if (keptRecorded > targetCount) {
+      const name = (await db.shooters.get(row.shooterId))?.name ?? 'A shooter'
+      throw new UserError(`${name} already has ${keptRecorded} results recorded. Clear some before lowering targets to ${targetCount}.`)
+    }
+    if (lost > 0 && !confirmLoss('Lowering the target count will clear results already recorded in the removed circles. Continue?')) {
+      return false
+    }
+  }
+
+  await db.transaction('rw', db.stations, db.targets, async () => {
+    await db.stations.update(stationId, { targetCount })
+    for (const member of squadOf(round)) {
+      const row = existing.find((r) => r.slot === member.slot)
+      if (row) {
+        await db.targets.update(row.id, { results: resizeResults(row.results, targetCount), shooterId: member.shooterId })
+      } else {
+        await db.targets.add({ stationId, slot: member.slot, shooterId: member.shooterId, results: blankResults(targetCount) } as TargetRow)
+      }
+    }
+  })
+  return true
+}
+
+/** Tap a circle: grey -> green (hit) -> red (miss) -> grey. Saved immediately. */
+export async function tapTarget(rowId: number, index: number, targetCount: number): Promise<void> {
+  await db.transaction('rw', db.targets, async () => {
+    const row = await db.targets.get(rowId)
+    if (!row) return
+    const current = row.results[index]
+    if (current === 'NA') return
+    const next = nextResult(current)
+    // Don't allow more results than there are targets (e.g. 7 targets, 8 circles).
+    if (current === null && countRecorded(row.results) >= targetCount) {
+      throw new UserError(`All ${targetCount} targets are already recorded for this shooter.`)
+    }
+    const results = [...row.results]
+    results[index] = next
+    await db.targets.update(rowId, { results })
+  })
+}
+
+export async function setBreakage(stationId: number, breakageCount: number): Promise<void> {
+  await db.stations.update(stationId, { breakageCount: Math.max(0, Math.min(99, breakageCount)) })
+}
