@@ -1,0 +1,92 @@
+Subject:
+Scores From GCFC / Granite Falls, WA / 23-Oct-2026 15:30
+
+Body:
+Course Name:  GCFC
+Course Location:  Granite Falls, WA
+Date:  23-Oct-2026 15:30
+Stations:  12
+Total Targets:  100
+
+Shooter 1:  Jay
+  Total:  80
+    Station 1:  6 / 8
+    XOXO
+    XXXX
+    Station 2:  5 / 8
+    XOOO
+    XXXX
+    Station 3:  6 / 8
+    XXOO
+    XXXX
+    Station 4:  7 / 8
+    XOXX
+    XXXX
+    Station 5:  7 / 10
+    XOXOX
+    XXXXO
+    Station 6:  7 / 8
+    XOXX
+    XXXX
+    Station 7:  7 / 8
+    XOXX
+    XXXX
+    Station 8:  7 / 8
+    XOXX
+    XXXX
+    Station 9:  7 / 8
+    XOXX
+    XXXX
+    Station 10:  7 / 8
+    XOXX
+    XXXX
+    Station 11:  7 / 8
+    XOXX
+    XXXX
+    Station 12:  7 / 10
+    XOXXO
+    XXXXO
+
+Shooter 2:  Jerry T
+  Total:  79
+    Station 1:  5 / 8
+    XOXO
+    XXXO
+    Station 2:  5 / 8
+    XOOO
+    XXXX
+    Station 3:  6 / 8
+    XXOO
+    XXXX
+    Station 4:  8 / 8
+    XXXX
+    XXXX
+    Station 5:  6 / 10
+    XOXOO
+    XXXXO
+    Station 6:  7 / 8
+    XOXX
+    XXXX
+    Station 7:  7 / 8
+    XOXX
+    XXXX
+    Station 8:  7 / 8
+    XOXX
+    XXXX
+    Station 9:  7 / 8
+    XOXX
+    XXXX
+    Station 10:  7 / 8
+    XOXX
+    XXXX
+    Station 11:  7 / 8
+    XOXX
+    XXXX
+    Station 12:  7 / 10
+    XOXXO
+    XXXX-
+
+
+Breakage:
+    Station 5;  6
+    Station 10: 4
