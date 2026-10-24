@@ -172,12 +172,12 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
             <p className="warn-text">{lossWarning}</p>
             <div className="actions">
               <button className="btn btn-secondary" onClick={() => { setLossWarning(null); setPending(station.targetCount) }}>Keep {station.targetCount}</button>
-              <button className="btn btn-danger" onClick={() => confirm(true)}>Change to {pending}</button>
+              <button className="btn btn-danger" onClick={() => confirm(true)}>Use {pending}</button>
             </div>
           </div>
         )}
         {!isSet && <p className="hint">Set the number of targets, then tap ✓ to start scoring.</p>}
-        {isSet && needsConfirm && <p className="hint">Tap ✓ to change targets to {pending}.</p>}
+        {isSet && needsConfirm && !lossWarning && <p className="hint">Tap ✓ to change targets to {pending}.</p>}
 
         {isSet &&
           order.map((m) => {
