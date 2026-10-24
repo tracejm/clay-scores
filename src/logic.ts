@@ -2,13 +2,17 @@
  * Pure scoring rules. No screens and no database here, so every rule can be
  * unit-tested on its own (see logic.test.ts).
  */
-import type { Course, Round, Shooter, Station, TargetResult, TargetRow } from './db'
+import { COURSE_TYPE_LABEL, type Course, type CourseType, type Round, type Shooter, type Station, type TargetResult, type TargetRow } from './db'
 
 export const MAX_TARGETS = 12
 export const MIN_TARGETS = 1
 export const DEFAULT_STATION_TARGETS = 10
 export const DEFAULT_STATION_COUNT = 15
 export const MAX_SQUAD = 5
+
+/** 5-Stand rounds always have this layout. */
+export const FIVE_STAND = { stations: 5, targets: 5 } as const
+export const isFiveStand = (t: CourseType | undefined) => t === 'FIVE_STAND'
 
 /** Circles are activated in pairs: 1-2 targets -> 2 circles, 3-4 -> 4, etc. */
 export function activeCircleCount(targetCount: number): number {
@@ -62,6 +66,12 @@ export function squadOf(round: Round): SquadMember[] {
 }
 
 /** Shooting order at a station rotates: station 1 = A,B,C; station 2 = B,C,A; ... */
+/** Shooting order at a station for this round: rotated unless rotation is off. */
+export function orderForStation(round: Round, stationNumber: number): SquadMember[] {
+  const squad = squadOf(round)
+  return round.rotateShooters === false ? squad : rotateForStation(squad, stationNumber)
+}
+
 export function rotateForStation<T>(squad: T[], stationNumber: number): T[] {
   if (squad.length === 0) return []
   const offset = (stationNumber - 1) % squad.length
@@ -125,12 +135,23 @@ export function buildEmail({ round, course, shooters, stations, targets }: Email
     .sort((a, b) => a.stationNumber - b.stationNumber)
   const totalTargets = played.reduce((sum, s) => sum + s.targetCount, 0)
 
+  const sum = (f: (s: Station) => number) => stations.reduce((n, s) => n + (f(s) || 0), 0)
+  const breakage = sum((s) => s.breakageCount)
+  const look = sum((s) => s.lookCount)
+  const practice = sum((s) => s.practiceCount)
+
   const lines: string[] = []
   lines.push(`Course Name:  ${course?.courseName ?? ''}`)
   lines.push(`Course Location:  ${course?.location ?? ''}`)
+  lines.push(`Course Type:  ${COURSE_TYPE_LABEL[round.courseType ?? 'SPORTING_CLAYS']}`)
   lines.push(`Date:  ${formatDateTime(round.roundDate)}`)
   lines.push(`Stations:  ${round.stationCount}`)
   lines.push(`Total Targets:  ${totalTargets}`)
+  lines.push(`Rotate Shooters:  ${round.rotateShooters === false ? 'No' : 'Yes'}`)
+  // Non-scoring targets: only listed when there are any.
+  if (breakage) lines.push(`Breakage:  ${breakage}`)
+  if (look) lines.push(`Look Targets:  ${look}`)
+  if (practice) lines.push(`Practice Targets:  ${practice}`)
   lines.push('')
 
   for (const member of squadOf(round)) {
@@ -148,11 +169,24 @@ export function buildEmail({ round, course, shooters, stations, targets }: Email
     lines.push('')
   }
 
-  const broken = played.filter((s) => s.breakageCount > 0)
-  lines.push('')
-  lines.push('Breakage:')
-  if (broken.length === 0) lines.push('    None')
-  for (const s of broken) lines.push(`    Station ${s.stationNumber}:  ${s.breakageCount}`)
+  // Breakage by station (as in email_example.txt), only when there is some.
+  const broken = [...stations].filter((s) => s.breakageCount > 0).sort((a, b) => a.stationNumber - b.stationNumber)
+  if (broken.length) {
+    lines.push('')
+    lines.push('Breakage:')
+    for (const s of broken) lines.push(`    Station ${s.stationNumber}:  ${s.breakageCount}`)
+  }
+
+  // Station notes, in station order.
+  const noted = [...stations].filter((s) => s.notes?.trim()).sort((a, b) => a.stationNumber - b.stationNumber)
+  if (noted.length) {
+    lines.push('')
+    lines.push('Notes:')
+    for (const s of noted) {
+      lines.push(`Station ${s.stationNumber} -`)
+      lines.push(s.notes.trim())
+    }
+  }
 
   return { subject, body: lines.join('\n') }
 }

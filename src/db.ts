@@ -16,10 +16,18 @@ import Dexie, { type EntityTable } from 'dexie'
 /** The four possible values for a single target (TARGET_1 .. TARGET_12). */
 export type TargetResult = 'HIT' | 'MISS' | 'NA' | null
 
+/** Kind of course. 5-Stand fixes the round layout (5 stations x 5 targets, no rotation). */
+export type CourseType = 'SPORTING_CLAYS' | 'FIVE_STAND'
+export const COURSE_TYPE_LABEL: Record<CourseType, string> = {
+  SPORTING_CLAYS: 'Sporting Clays',
+  FIVE_STAND: '5-Stand',
+}
+
 export interface Course {
   id: number
   courseName: string
   location: string
+  courseType: CourseType
 }
 
 export interface Shooter {
@@ -35,6 +43,10 @@ export interface Round {
   roundDate: number
   courseId: number
   stationCount: number
+  /** Copied from the course when the round is created, so later course edits don't change old rounds. */
+  courseType: CourseType
+  /** true: first shooter rotates each station (A,B,C -> B,C,A ...). false: always A,B,C. */
+  rotateShooters: boolean
   shooter1Id: number
   shooter2Id: number | null
   shooter3Id: number | null
@@ -49,6 +61,12 @@ export interface Station {
   /** 0 means "not set yet"; otherwise 1..12. */
   targetCount: number
   breakageCount: number
+  /** Targets shown to the squad before shooting ("look" or "show" birds). Not scored. */
+  lookCount: number
+  /** Practice targets thrown at the station. Not scored. */
+  practiceCount: number
+  /** Free-text notes about the station. */
+  notes: string
 }
 
 export interface TargetRow {
@@ -74,10 +92,31 @@ export const db = new Dexie('ClayScores') as Dexie & {
 
 // Schema: '++id' = auto-increment primary key; other names are indexes
 // (columns we look things up by). '&' means the index must be unique.
-db.version(1).stores({
+const STORES = {
   courses: '++id, courseName',
   shooters: '++id, &nameKey',
   rounds: '++id, roundDate, courseId, [courseId+roundDate]',
   stations: '++id, roundId, [roundId+stationNumber]',
   targets: '++id, stationId, [stationId+slot]',
-})
+}
+db.version(1).stores(STORES)
+
+// Version 2 (app v0.4.0) added course type, rotate-shooters, look/practice
+// targets and notes. The first time an updated app opens, this fills in
+// sensible values for everything already saved on the phone. Nothing is lost.
+db.version(2)
+  .stores(STORES)
+  .upgrade(async (tx) => {
+    await tx.table('courses').toCollection().modify((c) => {
+      c.courseType ??= 'SPORTING_CLAYS'
+    })
+    await tx.table('rounds').toCollection().modify((r) => {
+      r.courseType ??= 'SPORTING_CLAYS'
+      r.rotateShooters ??= true // old rounds always rotated
+    })
+    await tx.table('stations').toCollection().modify((s) => {
+      s.lookCount ??= 0
+      s.practiceCount ??= 0
+      s.notes ??= ''
+    })
+  })

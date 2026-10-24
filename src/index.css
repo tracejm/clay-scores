@@ -324,3 +324,47 @@ input[type='datetime-local'] { appearance: none; text-align: left; color-scheme:
 .dialog h2 { margin: 0; font-size: 1.5rem; }
 .dialog p { margin: 0; }
 .dialog-round { padding: 12px; background: var(--surface-2); border-radius: 12px; line-height: 1.4; }
+
+/* ---------- Checkbox ---------- */
+.check {
+  display: flex; align-items: center; gap: 14px;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+.check input { width: 30px; height: 30px; flex: none; accent-color: var(--accent); margin: 0; }
+.check span { display: flex; flex-direction: column; gap: 2px; }
+.check small { color: var(--muted); font-weight: 600; font-size: .85rem; }
+.check-locked { opacity: .75; cursor: default; }
+.step-value.locked { display: block; text-align: left; }
+
+/* ---------- Round info, totals, extras, notes ---------- */
+.round-info { margin: 0; color: var(--muted); font-weight: 700; }
+.station-note-flag { font-size: .75rem; color: var(--accent); font-weight: 800; }
+.totals-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
+.totals-counts div { background: var(--surface-2); border-radius: 10px; padding: 6px 4px; text-align: center; }
+.totals-counts dt { font-size: .75rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.totals-counts dd { margin: 0; font-size: 1.35rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.extras { display: flex; flex-direction: column; gap: 10px; }
+.extras-title { margin: 6px 0 0; font-size: .85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.locked-count { font-size: 1.8rem; font-weight: 900; padding-right: 8px; }
+.locked-count small { font-size: .9rem; color: var(--muted); font-weight: 700; }
+.notes textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+.notes textarea:focus { border-color: var(--accent); outline: none; }
+.notes textarea::placeholder { color: #8d8d8d; }
+.notes-status { float: right; font-weight: 600; font-size: .85rem; }

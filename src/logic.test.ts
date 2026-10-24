@@ -1,8 +1,9 @@
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
-import { createRound, deleteRound, saveCourse, saveShooter, setBreakage, setStationTargets, tapTarget, UserError } from './actions'
-import { activeCircleCount, buildEmail, formatDateTime, gridLines, nextResult, rotateForStation } from './logic'
+import { createRound, deleteRound, saveCourse, saveShooter, setBreakage, setStationCounter, setStationNotes, setStationTargets, tapTarget, UserError } from './actions'
+import { activeCircleCount, buildEmail, formatDateTime, gridLines, nextResult, orderForStation, rotateForStation } from './logic'
 
 describe('scoring rules', () => {
   it('activates circles in pairs', () => {
@@ -51,9 +52,9 @@ describe('database actions', () => {
     const c = await saveCourse('GCFC', 'Granite Falls, WA')
     const jay = await saveShooter('Jay')
     const when = new Date(2026, 9, 23, 15, 30).getTime()
-    const id = await createRound({ courseId: c, roundDate: when, stationCount: 12, shooterIds: [jay, null, null, null, null] })
+    const id = await createRound({ courseId: c, roundDate: when, stationCount: 12, rotateShooters: true, shooterIds: [jay, null, null, null, null] })
     expect(await db.stations.where('roundId').equals(id).count()).toBe(12)
-    await expect(createRound({ courseId: c, roundDate: when + 20_000, stationCount: 12, shooterIds: [jay, null, null, null, null] })).rejects.toThrow(/already exists/)
+    await expect(createRound({ courseId: c, roundDate: when + 20_000, stationCount: 12, rotateShooters: true, shooterIds: [jay, null, null, null, null] })).rejects.toThrow(/already exists/)
   })
 
   it('records taps, enforces the target limit and builds the email', async () => {
@@ -61,7 +62,7 @@ describe('database actions', () => {
     const jay = await saveShooter('Jay')
     const jerry = await saveShooter('Jerry T')
     const when = new Date(2026, 9, 23, 15, 30).getTime()
-    const roundId = await createRound({ courseId: c, roundDate: when, stationCount: 12, shooterIds: [jay, jerry, null, null, null] })
+    const roundId = await createRound({ courseId: c, roundDate: when, stationCount: 12, rotateShooters: true, shooterIds: [jay, jerry, null, null, null] })
     const st1 = (await db.stations.where('[roundId+stationNumber]').equals([roundId, 1]).first())!
     await setStationTargets(st1.id, 3, () => true)
     const jayRow = (await db.targets.where('[stationId+slot]').equals([st1.id, 1]).first())!
@@ -97,7 +98,7 @@ describe('database actions', () => {
     await saveShooter('JAY', jay) // capitals-only change is fine
     await expect(saveShooter('jay', gil)).rejects.toThrow(/already exists/) // can't take another's name
     const c = await saveCourse('GFCF', 'Granite Fals')
-    await saveCourse('GCFC', 'Granite Falls, WA', c)
+    await saveCourse('GCFC', 'Granite Falls, WA', 'SPORTING_CLAYS', c)
     expect(await db.courses.get(c)).toMatchObject({ courseName: 'GCFC', location: 'Granite Falls, WA' })
     expect(await db.courses.count()).toBe(1)
   })
@@ -105,8 +106,8 @@ describe('database actions', () => {
   it('deletes a round with its stations and targets, leaving others intact', async () => {
     const c = await saveCourse('GCFC', 'Granite Falls, WA')
     const jay = await saveShooter('Jay')
-    const keep = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 1), stationCount: 3, shooterIds: [jay, null, null, null, null] })
-    const gone = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 2), stationCount: 4, shooterIds: [jay, null, null, null, null] })
+    const keep = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 1), stationCount: 3, rotateShooters: true, shooterIds: [jay, null, null, null, null] })
+    const gone = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 2), stationCount: 4, rotateShooters: true, shooterIds: [jay, null, null, null, null] })
     for (const r of [keep, gone]) {
       const st = (await db.stations.where('roundId').equals(r).first())!
       await setStationTargets(st.id, 6, () => true)
@@ -118,5 +119,92 @@ describe('database actions', () => {
     expect(await db.targets.count()).toBe(1)
     expect(await db.shooters.count()).toBe(1) // master data untouched
     expect(await db.courses.count()).toBe(1)
+  })
+
+  async function emailFor(roundId: number) {
+    const round = (await db.rounds.get(roundId))!
+    return buildEmail({
+      round,
+      course: await db.courses.get(round.courseId),
+      shooters: new Map((await db.shooters.toArray()).map((x) => [x.id, x])),
+      stations: await db.stations.where('roundId').equals(roundId).toArray(),
+      targets: await db.targets.toArray(),
+    }).body
+  }
+
+  it('keeps the same shooter order at every station when rotation is off', async () => {
+    const c = await saveCourse('GCFC', '')
+    const [a, b, cc] = [await saveShooter('A'), await saveShooter('B'), await saveShooter('C')]
+    const id = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 3), stationCount: 4, rotateShooters: false, shooterIds: [a, b, cc, null, null] })
+    const round = (await db.rounds.get(id))!
+    for (const n of [1, 2, 3, 4]) expect(orderForStation(round, n).map((m) => m.shooterId)).toEqual([a, b, cc])
+    expect(await emailFor(id)).toContain('Rotate Shooters:  No')
+    const rot = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 4), stationCount: 4, rotateShooters: true, shooterIds: [a, b, cc, null, null] })
+    expect(orderForStation((await db.rounds.get(rot))!, 2).map((m) => m.shooterId)).toEqual([b, cc, a])
+    expect(await emailFor(rot)).toContain('Rotate Shooters:  Yes')
+  })
+
+  it('forces the 5-Stand layout: 5 stations x 5 targets, no rotation, ready to score', async () => {
+    const c = await saveCourse('Club 5-Stand', 'Monroe, WA', 'FIVE_STAND')
+    const [a, b] = [await saveShooter('A'), await saveShooter('B')]
+    // Ask for 15 stations with rotation: both must be overridden.
+    const id = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 5), stationCount: 15, rotateShooters: true, shooterIds: [a, b, null, null, null] })
+    const round = (await db.rounds.get(id))!
+    expect(round).toMatchObject({ stationCount: 5, rotateShooters: false, courseType: 'FIVE_STAND' })
+    const stations = await db.stations.where('roundId').equals(id).toArray()
+    expect(stations.map((x) => x.targetCount)).toEqual([5, 5, 5, 5, 5])
+    expect(await db.targets.count()).toBe(10) // 5 stations x 2 shooters
+    await expect(setStationTargets(stations[0].id, 6, () => true)).rejects.toThrow(/always have 5/)
+    const body = await emailFor(id)
+    expect(body).toContain('Course Type:  5-Stand')
+    expect(body).toContain('Stations:  5\nTotal Targets:  25\nRotate Shooters:  No')
+  })
+
+  it('lists breakage/look/practice totals only when non-zero, and notes at the end', async () => {
+    const c = await saveCourse('GCFC', 'Granite Falls, WA')
+    const a = await saveShooter('Jay')
+    const id = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 6), stationCount: 5, rotateShooters: true, shooterIds: [a, null, null, null, null] })
+    const st = (await db.stations.where('roundId').equals(id).toArray()).sort((x, y) => x.stationNumber - y.stationNumber)
+    let body = await emailFor(id)
+    expect(body).not.toMatch(/Breakage|Look Targets|Practice Targets|Notes:/)
+    expect(body).toContain('Course Type:  Sporting Clays')
+
+    await setStationCounter(st[0].id, 'lookCount', 2)
+    await setStationCounter(st[3].id, 'lookCount', 1)
+    await setStationCounter(st[1].id, 'practiceCount', 4)
+    await setStationCounter(st[1].id, 'breakageCount', -3) // clamped to 0
+    await setStationNotes(st[3].id, 'Rabbit bounces early')
+    await setStationNotes(st[0].id, '  Long crosser L to R  ')
+    await setStationNotes(st[2].id, '   ') // blank: ignored
+    body = await emailFor(id)
+    expect(body).toContain('Look Targets:  3')
+    expect(body).toContain('Practice Targets:  4')
+    expect(body).not.toContain('Breakage')
+    expect(body.endsWith('Notes:\nStation 1 -\nLong crosser L to R\nStation 4 -\nRabbit bounces early')).toBe(true)
+  })
+
+  it('upgrades data saved by the previous app version without losing anything', async () => {
+    db.close()
+    await Dexie.delete('ClayScores')
+    // Recreate the old (version 1) database exactly as v0.3.0 stored it.
+    const old = new Dexie('ClayScores')
+    old.version(1).stores({
+      courses: '++id, courseName', shooters: '++id, &nameKey',
+      rounds: '++id, roundDate, courseId, [courseId+roundDate]',
+      stations: '++id, roundId, [roundId+stationNumber]', targets: '++id, stationId, [stationId+slot]',
+    })
+    const cId = await old.table('courses').add({ courseName: 'GCFC', location: 'Granite Falls, WA' })
+    const sId = await old.table('shooters').add({ name: 'Jay', nameKey: 'jay' })
+    const rId = await old.table('rounds').add({ roundDate: Date.UTC(2026, 9, 23), courseId: cId, stationCount: 12, shooter1Id: sId, shooter2Id: null, shooter3Id: null, shooter4Id: null, shooter5Id: null })
+    const stId = await old.table('stations').add({ roundId: rId, stationNumber: 1, targetCount: 8, breakageCount: 2 })
+    await old.table('targets').add({ stationId: stId, shooterId: sId, slot: 1, results: ['HIT', 'MISS', null, null, null, null, null, null, 'NA', 'NA', 'NA', 'NA'] })
+    old.close()
+
+    await db.open() // the new app opening the old data
+    expect(await db.courses.get(cId as number)).toMatchObject({ courseName: 'GCFC', courseType: 'SPORTING_CLAYS' })
+    expect(await db.rounds.get(rId as number)).toMatchObject({ stationCount: 12, rotateShooters: true, courseType: 'SPORTING_CLAYS' })
+    expect(await db.stations.get(stId as number)).toMatchObject({ targetCount: 8, breakageCount: 2, lookCount: 0, practiceCount: 0, notes: '' })
+    expect((await db.targets.toArray())[0].results.slice(0, 2)).toEqual(['HIT', 'MISS'])
+    expect(await db.shooters.count()).toBe(1)
   })
 })

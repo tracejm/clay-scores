@@ -1,11 +1,11 @@
 /** Screen 7 (Stations / round overview) and Screen 8 (Individual Station). */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { setBreakage, setStationTargets, tapTarget } from '../actions'
-import { db, type Course, type Round, type Shooter, type Station, type TargetResult, type TargetRow } from '../db'
+import { useEffect, useRef, useState } from 'react'
+import { setStationCounter, setStationNotes, setStationTargets, tapTarget, type StationCounter } from '../actions'
+import { COURSE_TYPE_LABEL, db, type Course, type Round, type Shooter, type Station, type TargetResult, type TargetRow } from '../db'
 import {
   DEFAULT_STATION_TARGETS, MAX_TARGETS, MIN_TARGETS, activeCircleCount, buildEmail, countHits,
-  countRecorded, formatDateTime, mailtoUrl, rotateForStation, squadOf,
+  countRecorded, formatDateTime, isFiveStand, mailtoUrl, orderForStation, squadOf,
 } from '../logic'
 import { go } from '../router'
 import { Screen, Stepper, TopBar, errorText, useToast } from '../ui'
@@ -41,13 +41,16 @@ export function RoundScreen({ roundId }: { roundId: number }) {
   const { round, course, shooters, stations, targets } = data
   const squad = squadOf(round)
   const totalTargets = stations.reduce((s, st) => s + st.targetCount, 0)
-  const totalBreakage = stations.reduce((s, st) => s + st.breakageCount, 0)
+  const total = (f: (st: Station) => number) => stations.reduce((n, st) => n + (f(st) || 0), 0)
   const rowsFor = (stationId: number) => targets.filter((t) => t.stationId === stationId)
 
   return (
     <>
       <TopBar title={`${course?.courseName ?? 'Round'} · ${formatDateTime(round.roundDate)}`} />
       <Screen>
+        <p className="round-info">
+          {COURSE_TYPE_LABEL[round.courseType ?? 'SPORTING_CLAYS']} · {round.rotateShooters === false ? 'Shooters don’t rotate' : 'Shooters rotate each station'}
+        </p>
         <div className="station-grid">
           {stations.map((st) => {
             const rows = rowsFor(st.id)
@@ -60,6 +63,7 @@ export function RoundScreen({ roundId }: { roundId: number }) {
                   {st.targetCount === 0 ? 'not set' : `${st.targetCount} tgts`}
                   {done && ' ✓'}
                 </span>
+                {st.notes?.trim() && <span className="station-note-flag">✎ note</span>}
               </button>
             )
           })}
@@ -67,9 +71,12 @@ export function RoundScreen({ roundId }: { roundId: number }) {
 
         <section className="totals" aria-label="Current totals">
           <h2>Current Totals</h2>
-          <p className="totals-sub">
-            Targets: <strong>{totalTargets}</strong> &nbsp;|&nbsp; Breakage: <strong>{totalBreakage}</strong>
-          </p>
+          <dl className="totals-counts">
+            <div><dt>Targets</dt><dd>{totalTargets}</dd></div>
+            <div><dt>Breakage</dt><dd>{total((st) => st.breakageCount)}</dd></div>
+            <div><dt>Look</dt><dd>{total((st) => st.lookCount)}</dd></div>
+            <div><dt>Practice</dt><dd>{total((st) => st.practiceCount)}</dd></div>
+          </dl>
           <ul>
             {squad.map((m) => {
               const hits = stations.reduce((sum, st) => sum + countHits(rowsFor(st.id).find((r) => r.slot === m.slot)?.results ?? []), 0)
@@ -115,7 +122,8 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
   const isSet = station.targetCount > 0
   const needsConfirm = pending !== station.targetCount
 
-  const order = rotateForStation(squadOf(round), station.stationNumber)
+  const fiveStand = isFiveStand(round.courseType)
+  const order = orderForStation(round, station.stationNumber)
   const rows = targets.filter((t) => t.stationId === station.id)
 
   const [lossWarning, setLossWarning] = useState<string | null>(null)
@@ -152,13 +160,20 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
         onSub={() => go.round(round.id)}
       />
       <Screen>
-        <div className={`target-bar ${needsConfirm ? 'pending' : ''}`}>
-          <span className="target-bar-label">Targets</span>
-          <Stepper label="targets" value={pending} min={MIN_TARGETS} max={MAX_TARGETS} onChange={(v) => { setPending(v); setLossWarning(null) }} />
-          <button className="confirm-btn" onClick={() => confirm()} disabled={!needsConfirm} aria-label="Confirm number of targets">
-            ✓
-          </button>
-        </div>
+        {fiveStand ? (
+          <div className="target-bar">
+            <span className="target-bar-label">Targets</span>
+            <span className="locked-count">{station.targetCount} <small>(5-Stand)</small></span>
+          </div>
+        ) : (
+          <div className={`target-bar ${needsConfirm ? 'pending' : ''}`}>
+            <span className="target-bar-label">Targets</span>
+            <Stepper label="targets" value={pending} min={MIN_TARGETS} max={MAX_TARGETS} onChange={(v) => { setPending(v); setLossWarning(null) }} />
+            <button className="confirm-btn" onClick={() => confirm()} disabled={!needsConfirm} aria-label="Confirm number of targets">
+              ✓
+            </button>
+          </div>
+        )}
         {lossWarning && (
           <div className="error">
             <p className="warn-text">{lossWarning}</p>
@@ -188,10 +203,14 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
             )
           })}
 
-        <div className="breakage-bar">
-          <span className="target-bar-label">Broken targets</span>
-          <Stepper label="broken targets" value={station.breakageCount} min={0} max={99} onChange={(v) => setBreakage(station.id, v)} />
-        </div>
+        <section className="extras" aria-label="Not scored">
+          <h2 className="extras-title">Not scored</h2>
+          <CounterBar station={station} field="breakageCount" label="Broken targets" />
+          <CounterBar station={station} field="lookCount" label="Look targets" />
+          <CounterBar station={station} field="practiceCount" label="Practice targets" />
+        </section>
+
+        <StationNotes station={station} />
 
         <nav className="station-nav">
           <button className="btn btn-secondary" disabled={!prev} onClick={() => prev && go.station(round.id, prev, true)}>‹ Station {prev ?? ''}</button>
@@ -200,6 +219,60 @@ function StationBody({ data, stationId }: { data: RoundData; stationId: number }
       </Screen>
       {toast}
     </>
+  )
+}
+
+/** A − n + row for one of the non-scoring counts at a station. Saved immediately. */
+function CounterBar({ station, field, label }: { station: Station; field: StationCounter; label: string }) {
+  return (
+    <div className="breakage-bar">
+      <span className="target-bar-label">{label}</span>
+      <Stepper label={label.toLowerCase()} value={station[field] ?? 0} min={0} max={99} onChange={(v) => setStationCounter(station.id, field, v)} />
+    </div>
+  )
+}
+
+/**
+ * Free-text notes for the station. Typing is kept on screen and saved shortly
+ * after you pause (and when you leave the box), so nothing is lost.
+ */
+function StationNotes({ station }: { station: Station }) {
+  const [text, setText] = useState(station.notes ?? '')
+  const [saved, setSaved] = useState(true)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const latest = useRef(text)
+
+  const save = () => {
+    clearTimeout(timer.current)
+    setStationNotes(station.id, latest.current).then(() => setSaved(true))
+  }
+  // Save any unsaved typing when leaving the station.
+  useEffect(() => () => {
+    if (latest.current !== (station.notes ?? '')) setStationNotes(station.id, latest.current)
+    clearTimeout(timer.current)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="field notes">
+      <label className="field-label" htmlFor={`notes-${station.id}`}>
+        Notes {text && <span className="notes-status">{saved ? 'Saved' : 'Saving…'}</span>}
+      </label>
+      <textarea
+        id={`notes-${station.id}`}
+        value={text}
+        rows={3}
+        maxLength={2000}
+        placeholder="e.g. Long crosser left to right, second bird drops fast"
+        onChange={(e) => {
+          setText(e.target.value)
+          latest.current = e.target.value
+          setSaved(false)
+          clearTimeout(timer.current)
+          timer.current = setTimeout(save, 600)
+        }}
+        onBlur={save}
+      />
+    </div>
   )
 }
 

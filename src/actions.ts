@@ -2,8 +2,8 @@
  * Every change the app makes to the database goes through one of these
  * functions. Validation rules from the spec live here.
  */
-import { db, type Round, type TargetRow } from './db'
-import { blankResults, countRecorded, nextResult, resizeResults, squadOf, toMinute, activeCircleCount, MAX_TARGETS, MIN_TARGETS } from './logic'
+import { db, type CourseType, type Round, type Station, type TargetRow } from './db'
+import { blankResults, countRecorded, nextResult, resizeResults, squadOf, toMinute, activeCircleCount, isFiveStand, FIVE_STAND, MAX_TARGETS, MIN_TARGETS } from './logic'
 
 /** Thrown for problems the user can fix; the message is shown on screen. */
 export class UserError extends Error {}
@@ -12,7 +12,7 @@ export class UserError extends Error {}
  * Create a course, or update one when `id` is given. Rounds point to the
  * course by id, so a correction shows up everywhere automatically.
  */
-export async function saveCourse(courseName: string, location: string, id?: number): Promise<number> {
+export async function saveCourse(courseName: string, location: string, courseType: CourseType = 'SPORTING_CLAYS', id?: number): Promise<number> {
   const name = courseName.trim().replace(/\s+/g, ' ')
   const loc = location.trim().replace(/\s+/g, ' ')
   if (!name) throw new UserError('Please enter a course name.')
@@ -21,10 +21,11 @@ export async function saveCourse(courseName: string, location: string, id?: numb
     .first()
   if (dup) throw new UserError(`"${name}" at "${loc || 'no location'}" already exists.`)
   if (id != null) {
-    await db.courses.update(id, { courseName: name, location: loc })
+    // Existing rounds keep the type they were created with (stored on the round).
+    await db.courses.update(id, { courseName: name, location: loc, courseType })
     return id
   }
-  return db.courses.add({ courseName: name, location: loc })
+  return db.courses.add({ courseName: name, location: loc, courseType })
 }
 
 /**
@@ -50,10 +51,15 @@ export interface NewRound {
   courseId: number | null
   roundDate: number | null
   stationCount: number
+  rotateShooters: boolean
   shooterIds: (number | null)[] // 5 slots
 }
 
-/** Creates the round plus one empty station row per station. Returns the round id. */
+/**
+ * Creates the round plus one station row per station. Returns the round id.
+ * For a 5-Stand course the layout is fixed: 5 stations of 5 targets, no rotation,
+ * and every station is ready to score immediately.
+ */
 export async function createRound(input: NewRound): Promise<number> {
   if (input.courseId == null) throw new UserError('Please select a course.')
   if (input.roundDate == null || Number.isNaN(input.roundDate)) throw new UserError('Please choose the date and time.')
@@ -62,30 +68,51 @@ export async function createRound(input: NewRound): Promise<number> {
   const roundDate = toMinute(input.roundDate)
   const courseId = input.courseId
 
-  return db.transaction('rw', db.rounds, db.stations, async () => {
+  return db.transaction('rw', db.courses, db.rounds, db.stations, db.targets, async () => {
+    const course = await db.courses.get(courseId)
+    if (!course) throw new UserError('Please select a course.')
+    const courseType = course.courseType ?? 'SPORTING_CLAYS'
+    const fiveStand = isFiveStand(courseType)
+    const stationCount = fiveStand ? FIVE_STAND.stations : input.stationCount
+    const targetCount = fiveStand ? FIVE_STAND.targets : 0 // 0 = set at the station
+
     const clash = await db.rounds.where('[courseId+roundDate]').equals([courseId, roundDate]).first()
     if (clash) {
-      throw new UserError('A round at this course with the same date and time already exists. Change the date/time, or use "Open Existing Round".')
+      throw new UserError('A round at this course with the same date and time already exists. Change the date/time, or use "Manage Existing Rounds".')
     }
     const [s1, s2, s3, s4, s5] = input.shooterIds
-    const roundId = await db.rounds.add({
+    const round = {
       roundDate,
       courseId,
-      stationCount: input.stationCount,
+      stationCount,
+      courseType,
+      rotateShooters: fiveStand ? false : input.rotateShooters,
       shooter1Id: s1!,
       shooter2Id: s2 ?? null,
       shooter3Id: s3 ?? null,
       shooter4Id: s4 ?? null,
       shooter5Id: s5 ?? null,
-    } as Round)
-    await db.stations.bulkAdd(
-      Array.from({ length: input.stationCount }, (_, i) => ({
+    } as Round
+    const roundId = await db.rounds.add(round)
+    const stationIds = (await db.stations.bulkAdd(
+      Array.from({ length: stationCount }, (_, i) => ({
         roundId,
         stationNumber: i + 1,
-        targetCount: 0,
+        targetCount,
         breakageCount: 0,
-      })),
-    )
+        lookCount: 0,
+        practiceCount: 0,
+        notes: '',
+      })) as Station[],
+      { allKeys: true },
+    )) as number[]
+    if (targetCount > 0) {
+      // Targets are already known, so create each shooter's scoring row now.
+      const rows = stationIds.flatMap((stationId) =>
+        squadOf({ ...round, id: roundId }).map((m) => ({ stationId, slot: m.slot, shooterId: m.shooterId, results: blankResults(targetCount) })),
+      )
+      await db.targets.bulkAdd(rows as TargetRow[])
+    }
     return roundId
   })
 }
@@ -105,6 +132,9 @@ export async function setStationTargets(
   if (!station) throw new UserError('Station not found.')
   const round = await db.rounds.get(station.roundId)
   if (!round) throw new UserError('Round not found.')
+  if (isFiveStand(round.courseType) && targetCount !== FIVE_STAND.targets) {
+    throw new UserError('5-Stand stations always have 5 targets.')
+  }
   const existing = await db.targets.where('stationId').equals(stationId).toArray()
 
   const active = activeCircleCount(targetCount)
@@ -152,8 +182,17 @@ export async function tapTarget(rowId: number, index: number, targetCount: numbe
   })
 }
 
-export async function setBreakage(stationId: number, breakageCount: number): Promise<void> {
-  await db.stations.update(stationId, { breakageCount: Math.max(0, Math.min(99, breakageCount)) })
+/** The per-station counters that don't affect scores. */
+export type StationCounter = 'breakageCount' | 'lookCount' | 'practiceCount'
+
+export async function setStationCounter(stationId: number, field: StationCounter, value: number): Promise<void> {
+  await db.stations.update(stationId, { [field]: Math.max(0, Math.min(99, Math.round(value))) })
+}
+
+export const setBreakage = (stationId: number, n: number) => setStationCounter(stationId, 'breakageCount', n)
+
+export async function setStationNotes(stationId: number, notes: string): Promise<void> {
+  await db.stations.update(stationId, { notes: notes.slice(0, 2000) })
 }
 
 /** Permanently delete a round with all of its stations and recorded targets. */
