@@ -155,3 +155,13 @@ export async function tapTarget(rowId: number, index: number, targetCount: numbe
 export async function setBreakage(stationId: number, breakageCount: number): Promise<void> {
   await db.stations.update(stationId, { breakageCount: Math.max(0, Math.min(99, breakageCount)) })
 }
+
+/** Permanently delete a round with all of its stations and recorded targets. */
+export async function deleteRound(roundId: number): Promise<void> {
+  await db.transaction('rw', db.rounds, db.stations, db.targets, async () => {
+    const stationIds = await db.stations.where('roundId').equals(roundId).primaryKeys()
+    await db.targets.where('stationId').anyOf(stationIds).delete()
+    await db.stations.bulkDelete(stationIds)
+    await db.rounds.delete(roundId)
+  })
+}

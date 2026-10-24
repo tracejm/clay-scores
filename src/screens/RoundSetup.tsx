@@ -1,9 +1,9 @@
-/** Screen 4 (Create New Round) and Screen 6 (Open Existing Round). */
+/** Screen 4 (Create New Round). Opening/deleting rounds is in ManageRounds.tsx. */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { createRound } from '../actions'
 import { db } from '../db'
-import { DEFAULT_STATION_COUNT, MAX_SQUAD, roundLabel, toDateTimeInput, toMinute } from '../logic'
+import { DEFAULT_STATION_COUNT, MAX_SQUAD, toDateTimeInput, toMinute } from '../logic'
 import { go } from '../router'
 import { Actions, ErrorBox, Field, Screen, Stepper, TopBar, errorText } from '../ui'
 
@@ -90,49 +90,6 @@ export function NewRound() {
             <Actions>
               <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
               <button type="button" className="btn btn-primary" onClick={submit}>Save</button>
-            </Actions>
-          </form>
-        )}
-      </Screen>
-    </>
-  )
-}
-
-export function OpenRound() {
-  const data = useLiveQuery(async () => {
-    const rounds = await db.rounds.orderBy('roundDate').reverse().toArray() // newest first
-    const courses = new Map((await db.courses.toArray()).map((c) => [c.id, c]))
-    return rounds.map((r) => ({ id: r.id, label: roundLabel(courses.get(r.courseId), r) }))
-  })
-  const [selected, setSelected] = useState('')
-
-  // Default to the most recent round.
-  useEffect(() => {
-    if (data && data.length && !selected) setSelected(String(data[0].id))
-  }, [data, selected])
-
-  if (!data) return null
-  return (
-    <>
-      <TopBar title="Open Round" />
-      <Screen>
-        {data.length === 0 ? (
-          <div className="empty">
-            <p>No rounds yet.</p>
-            <button className="btn btn-primary" onClick={go.newRound}>Create New Round</button>
-          </div>
-        ) : (
-          <form className="form" onSubmit={(e) => { e.preventDefault(); go.round(Number(selected)) }}>
-            <Field label="Round">
-              <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-                {data.map((r) => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Actions>
-              <button type="button" className="btn btn-secondary" onClick={go.home}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={() => go.round(Number(selected))}>Open</button>
             </Actions>
           </form>
         )}

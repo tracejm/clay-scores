@@ -292,3 +292,35 @@ input[type='datetime-local'] { appearance: none; text-align: left; color-scheme:
 .record-edit { flex: none; color: var(--accent); font-weight: 800; }
 .note { margin: -4px 0 0; color: var(--muted); font-size: .95rem; }
 .empty-note { text-align: center; color: var(--muted); }
+
+/* ---------- Manage rounds ---------- */
+.round-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+}
+.round-when { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.round-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+.btn-delete { color: #ff7a7a; border-color: var(--miss); }
+
+/* ---------- Confirmation dialog ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(0, 0, 0, .8);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.dialog {
+  width: min(100%, 480px);
+  background: var(--surface);
+  border: 3px solid var(--miss);
+  border-radius: 18px;
+  padding: 20px;
+  color: var(--text);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.dialog h2 { margin: 0; font-size: 1.5rem; }
+.dialog p { margin: 0; }
+.dialog-round { padding: 12px; background: var(--surface-2); border-radius: 12px; line-height: 1.4; }

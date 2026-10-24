@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
-import { createRound, saveCourse, saveShooter, setBreakage, setStationTargets, tapTarget, UserError } from './actions'
+import { createRound, deleteRound, saveCourse, saveShooter, setBreakage, setStationTargets, tapTarget, UserError } from './actions'
 import { activeCircleCount, buildEmail, formatDateTime, gridLines, nextResult, rotateForStation } from './logic'
 
 describe('scoring rules', () => {
@@ -99,6 +99,24 @@ describe('database actions', () => {
     const c = await saveCourse('GFCF', 'Granite Fals')
     await saveCourse('GCFC', 'Granite Falls, WA', c)
     expect(await db.courses.get(c)).toMatchObject({ courseName: 'GCFC', location: 'Granite Falls, WA' })
+    expect(await db.courses.count()).toBe(1)
+  })
+
+  it('deletes a round with its stations and targets, leaving others intact', async () => {
+    const c = await saveCourse('GCFC', 'Granite Falls, WA')
+    const jay = await saveShooter('Jay')
+    const keep = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 1), stationCount: 3, shooterIds: [jay, null, null, null, null] })
+    const gone = await createRound({ courseId: c, roundDate: Date.UTC(2026, 9, 2), stationCount: 4, shooterIds: [jay, null, null, null, null] })
+    for (const r of [keep, gone]) {
+      const st = (await db.stations.where('roundId').equals(r).first())!
+      await setStationTargets(st.id, 6, () => true)
+    }
+    await deleteRound(gone)
+    expect(await db.rounds.get(gone)).toBeUndefined()
+    expect(await db.stations.where('roundId').equals(gone).count()).toBe(0)
+    expect(await db.stations.where('roundId').equals(keep).count()).toBe(3)
+    expect(await db.targets.count()).toBe(1)
+    expect(await db.shooters.count()).toBe(1) // master data untouched
     expect(await db.courses.count()).toBe(1)
   })
 })

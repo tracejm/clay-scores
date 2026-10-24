@@ -53,7 +53,8 @@ src/
   screens/
     Home.tsx         Screen 1
     MasterData.tsx   Manage Courses / Manage Shooters: lists + add/edit screens
-    RoundSetup.tsx   Screens 4 & 6 (new round, open round)
+    RoundSetup.tsx   Screen 4 (new round)
+    ManageRounds.tsx Manage Existing Rounds: open or delete (with confirmation)
     Round.tsx        Screens 7 & 8 (stations overview, individual station) + email
   index.css        The sunlight-readable dark theme
 public/            App icons
@@ -87,6 +88,9 @@ It follows your diagram, with two small adjustments:
 
 ### Small additions beyond the spec
 
+- **Manage Existing Rounds** (replacing Open Existing Round): rounds listed newest
+  first with their squad and progress, each with **Open** and **Delete**. Delete asks
+  for confirmation and removes the round's stations and scores; shooters and courses stay.
 - **Manage Courses / Manage Shooters** (replacing Create New Course/Shooter):
   an alphabetical list with **+ Add New** at the top; tap any entry to correct it.
   Rounds refer to courses and shooters by id, so a correction shows up in every

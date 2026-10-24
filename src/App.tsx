@@ -2,7 +2,8 @@
 import { usePath } from './router'
 import { Home } from './screens/Home'
 import { EditCourse, EditShooter, ManageCourses, ManageShooters } from './screens/MasterData'
-import { NewRound, OpenRound } from './screens/RoundSetup'
+import { ManageRounds } from './screens/ManageRounds'
+import { NewRound } from './screens/RoundSetup'
 import { RoundScreen, StationScreen } from './screens/Round'
 
 export default function App() {
@@ -16,7 +17,7 @@ export default function App() {
   if (path === '/shooter/new') return <EditShooter key="new" />
   if ((m = path.match(/^\/shooter\/(\d+)$/))) return <EditShooter key={m[1]} id={Number(m[1])} />
   if (path === '/round/new') return <NewRound />
-  if (path === '/round/open') return <OpenRound />
+  if (path === '/rounds' || path === '/round/open') return <ManageRounds />
   if ((m = path.match(/^\/round\/(\d+)\/station\/(\d+)$/))) return <StationScreen roundId={Number(m[1])} stationNumber={Number(m[2])} />
   if ((m = path.match(/^\/round\/(\d+)$/))) return <RoundScreen roundId={Number(m[1])} />
   return <Home />

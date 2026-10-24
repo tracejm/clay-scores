@@ -30,7 +30,7 @@ export const go = {
   shooter: (id: number) => navigate(`/shooter/${id}`),
   newShooter: () => navigate('/shooter/new'),
   newRound: () => navigate('/round/new'),
-  openRound: () => navigate('/round/open'),
+  rounds: () => navigate('/rounds'),
   round: (id: number, replace = false) => navigate(`/round/${id}`, replace),
   station: (roundId: number, n: number, replace = false) => navigate(`/round/${roundId}/station/${n}`, replace),
 }
