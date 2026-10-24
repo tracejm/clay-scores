@@ -3,6 +3,8 @@
 A score tracker for rounds of sporting clays. It runs on iPhone and Android,
 works with no cell signal, and keeps all data on the phone.
 
+**📖 [User Guide](docs/USER_GUIDE.md)**: how to install and use the app.
+
 Built from the original design documents in [`docs/`](docs/):
 
 - [`ClayAppFunctionalSpecs.odt`](docs/ClayAppFunctionalSpecs.odt): functional specification with screen mockups
