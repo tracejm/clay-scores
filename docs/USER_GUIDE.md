@@ -56,15 +56,17 @@ Tap any course or shooter in the list to fix a spelling. Rounds that already use
 
 ## Send the results
 
-On the round screen:
+On the round screen, below the totals, is a **Round Notes** box for anything about the whole round
+(weather, light, how the course was set). It saves as you type.
 
 - **Share Round Results** opens your phone's share menu, so you can send the scores by Gmail, Messages,
   WhatsApp and other apps. (Phones without a share menu open a new email instead.)
-- **✉ Email instead** opens a new email with the subject and scores filled in. Add the recipients and send.
+- **✉ Email Round Results** opens a new email with the subject and scores filled in. Add the recipients and send.
 - **Show results text** displays the results with a **Copy text** button.
 
 The top of the message shows the course type, whether shooters rotated, and the total breakage, look
-and practice targets (only those that aren't zero). Any station notes are listed at the end.
+and practice targets (only those that aren't zero). Then come each shooter's scores, your **Round Notes**,
+breakage by station, and any station notes at the end.
 
 ## Manage Existing Rounds
 

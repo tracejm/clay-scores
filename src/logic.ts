@@ -169,6 +169,13 @@ export function buildEmail({ round, course, shooters, stations, targets }: Email
     lines.push('')
   }
 
+  // Round notes: after the shooters' scores, before the breakage details.
+  if (round.notes?.trim()) {
+    lines.push('')
+    lines.push('Round Notes:')
+    lines.push(round.notes.trim())
+  }
+
   // Breakage by station (as in email_example.txt), only when there is some.
   const broken = [...stations].filter((s) => s.breakageCount > 0).sort((a, b) => a.stationNumber - b.stationNumber)
   if (broken.length) {

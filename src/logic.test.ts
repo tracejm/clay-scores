@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import Dexie from 'dexie'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
-import { createRound, deleteRound, saveCourse, saveShooter, setBreakage, setStationCounter, setStationNotes, setStationTargets, tapTarget, UserError } from './actions'
+import { createRound, deleteRound, setRoundNotes, saveCourse, saveShooter, setBreakage, setStationCounter, setStationNotes, setStationTargets, tapTarget, UserError } from './actions'
 import { activeCircleCount, buildEmail, formatDateTime, gridLines, nextResult, orderForStation, rotateForStation } from './logic'
 
 describe('scoring rules', () => {
@@ -189,6 +189,17 @@ describe('database actions', () => {
     expect(body).toContain('Practice Targets:  4')
     expect(body).not.toContain('Breakage')
     expect(body.endsWith('Notes:\nStation 1 -\nLong crosser L to R\nStation 4 -\nRabbit bounces early')).toBe(true)
+    expect(body).not.toContain('Round Notes')
+
+    // Round notes go after the shooters' scores and before the breakage details.
+    await setStationCounter(st[1].id, 'breakageCount', 2)
+    await setRoundNotes(id, '  Windy morning  ')
+    body = await emailFor(id)
+    const iShooter = body.indexOf('Shooter 1:'), iRound = body.indexOf('Round Notes:\nWindy morning'), iBreak = body.indexOf('Breakage:\n    Station 2:  2'), iNotes = body.indexOf('\nNotes:\n')
+    expect(iShooter).toBeGreaterThan(-1)
+    expect(iRound).toBeGreaterThan(iShooter)
+    expect(iBreak).toBeGreaterThan(iRound)
+    expect(iNotes).toBeGreaterThan(iBreak)
   })
 
   it('upgrades data saved by the previous app version without losing anything', async () => {

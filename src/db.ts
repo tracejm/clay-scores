@@ -51,6 +51,8 @@ export interface Round {
   shooter3Id: number | null
   shooter4Id: number | null
   shooter5Id: number | null
+  /** Free-text notes about the whole round (added in v0.6.0; may be missing on older rounds). */
+  notes?: string
 }
 
 export interface Station {

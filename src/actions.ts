@@ -91,6 +91,7 @@ export async function createRound(input: NewRound): Promise<number> {
       shooter3Id: s3 ?? null,
       shooter4Id: s4 ?? null,
       shooter5Id: s5 ?? null,
+      notes: '',
     } as Round
     const roundId = await db.rounds.add(round)
     const stationIds = (await db.stations.bulkAdd(
@@ -192,6 +193,11 @@ export const setBreakage = (stationId: number, n: number) => setStationCounter(s
 
 export async function setStationNotes(stationId: number, notes: string): Promise<void> {
   await db.stations.update(stationId, { notes: notes.slice(0, 2000) })
+}
+
+/** Save the round's notes (called on every keystroke). */
+export async function setRoundNotes(roundId: number, notes: string): Promise<void> {
+  await db.rounds.update(roundId, { notes: notes.slice(0, 4000) })
 }
 
 /** Permanently delete a round with all of its stations and recorded targets. */

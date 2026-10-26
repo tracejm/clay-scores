@@ -97,6 +97,7 @@ It follows your diagram, with two small adjustments:
   direct email draft.
 - **Look targets** and **Practice targets** per station, alongside Breakage. They're not scored.
 - **Notes** per station, listed at the end of the email.
+- **Round Notes** (v0.6.0) on the round screen, placed after the shooters' scores in the email.
 - The database moved to version 3. On first launch, saved data is upgraded in place
   (old rounds keep rotating, counts start at 0, the type is removed from courses). See `db.ts`.
 

@@ -1,7 +1,7 @@
 /** Screen 7 (Stations / round overview) and Screen 8 (Individual Station). */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef, useState } from 'react'
-import { setStationCounter, setStationNotes, setStationTargets, tapTarget, type StationCounter } from '../actions'
+import { useRef, useState } from 'react'
+import { setRoundNotes, setStationCounter, setStationNotes, setStationTargets, tapTarget, type StationCounter } from '../actions'
 import { COURSE_TYPE_LABEL, db, type Course, type Round, type Shooter, type Station, type TargetResult, type TargetRow } from '../db'
 import {
   DEFAULT_STATION_TARGETS, MAX_TARGETS, MIN_TARGETS, activeCircleCount, buildEmail, countHits,
@@ -89,6 +89,16 @@ export function RoundScreen({ roundId }: { roundId: number }) {
             })}
           </ul>
         </section>
+
+        <NotesBox
+          key={round.id}
+          id={`round-notes-${round.id}`}
+          label="Round Notes"
+          initial={round.notes ?? ''}
+          placeholder="e.g. Windy morning, targets 3 and 4 were hard to see against the trees"
+          maxLength={4000}
+          onSave={(t) => setRoundNotes(round.id, t)}
+        />
 
         <EmailExport email={buildEmail({ round, course, shooters, stations, targets })} />
       </Screen>
@@ -233,46 +243,50 @@ function CounterBar({ station, field, label }: { station: Station; field: Statio
 }
 
 /**
- * Free-text notes for the station. Typing is kept on screen and saved shortly
- * after you pause (and when you leave the box), so nothing is lost.
+ * A notes box. Every keystroke is saved straight away; the text you see is
+ * kept on screen, so saving never interrupts typing.
  */
-function StationNotes({ station }: { station: Station }) {
-  const [text, setText] = useState(station.notes ?? '')
+function NotesBox({ id, label, initial, placeholder, maxLength, onSave }: {
+  id: string
+  label: string
+  initial: string
+  placeholder: string
+  maxLength: number
+  onSave: (text: string) => Promise<void>
+}) {
+  const [text, setText] = useState(initial)
   const [saved, setSaved] = useState(true)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const latest = useRef(text)
+  const pending = useRef(0)
 
-  const save = () => {
-    clearTimeout(timer.current)
-    setStationNotes(station.id, latest.current).then(() => setSaved(true))
+  function change(value: string) {
+    setText(value)
+    setSaved(false)
+    const n = ++pending.current
+    onSave(value).then(() => {
+      if (n === pending.current) setSaved(true) // only the latest save counts
+    })
   }
-  // Save any unsaved typing when leaving the station.
-  useEffect(() => () => {
-    if (latest.current !== (station.notes ?? '')) setStationNotes(station.id, latest.current)
-    clearTimeout(timer.current)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="field notes">
-      <label className="field-label" htmlFor={`notes-${station.id}`}>
-        Notes {text && <span className="notes-status">{saved ? 'Saved' : 'Saving…'}</span>}
+      <label className="field-label" htmlFor={id}>
+        {label} {text && <span className="notes-status">{saved ? 'Saved' : 'Saving…'}</span>}
       </label>
-      <textarea
-        id={`notes-${station.id}`}
-        value={text}
-        rows={3}
-        maxLength={2000}
-        placeholder="e.g. Long crosser left to right, second bird drops fast"
-        onChange={(e) => {
-          setText(e.target.value)
-          latest.current = e.target.value
-          setSaved(false)
-          clearTimeout(timer.current)
-          timer.current = setTimeout(save, 600)
-        }}
-        onBlur={save}
-      />
+      <textarea id={id} value={text} rows={3} maxLength={maxLength} placeholder={placeholder} onChange={(e) => change(e.target.value)} />
     </div>
+  )
+}
+
+function StationNotes({ station }: { station: Station }) {
+  return (
+    <NotesBox
+      id={`notes-${station.id}`}
+      label="Notes"
+      initial={station.notes ?? ''}
+      placeholder="e.g. Long crosser left to right, second bird drops fast"
+      maxLength={2000}
+      onSave={(t) => setStationNotes(station.id, t)}
+    />
   )
 }
 
@@ -337,7 +351,7 @@ function EmailExport({ email }: { email: { subject: string; body: string } }) {
         </a>
       )}
       {canShare && (
-        <a className="btn btn-secondary btn-link" href={mailtoUrl(email.subject, email.body)}>✉ Email instead</a>
+        <a className="btn btn-secondary btn-link" href={mailtoUrl(email.subject, email.body)}>✉ Email Round Results</a>
       )}
       {!open && <button className="btn btn-secondary" onClick={() => setOpen(true)}>Show results text</button>}
       {open && (
