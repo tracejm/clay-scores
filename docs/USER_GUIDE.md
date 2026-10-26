@@ -9,10 +9,10 @@ sporting clays or 5-Stand. It works with no cell signal, and all data stays on y
 
 Open the app address once while you have a signal, then:
 
-- **Android (Chrome or Brave):** ⋮ menu → **Install app** / **Add to Home screen**.
+- **Android (Chrome):** ⋮ menu → **Install app** / **Add to Home screen**.
 - **iPhone / iPad (Safari):** **Share** button (square with ↑) → **Add to Home Screen**.
 
-Always open it from the Home Screen icon. It updates itself when opened with a signal.
+This creates an app icon on your home screen, like any other app you downloaded from an app store.  Always open it from this icon. It updates itself when opened with a signal.
 
 ## Before your first round
 
