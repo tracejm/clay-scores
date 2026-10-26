@@ -16,7 +16,7 @@ import Dexie, { type EntityTable } from 'dexie'
 /** The four possible values for a single target (TARGET_1 .. TARGET_12). */
 export type TargetResult = 'HIT' | 'MISS' | 'NA' | null
 
-/** Kind of course. 5-Stand fixes the round layout (5 stations x 5 targets, no rotation). */
+/** Kind of round. 5-Stand fixes the layout at 5 stations x 5 targets. */
 export type CourseType = 'SPORTING_CLAYS' | 'FIVE_STAND'
 export const COURSE_TYPE_LABEL: Record<CourseType, string> = {
   SPORTING_CLAYS: 'Sporting Clays',
@@ -27,7 +27,6 @@ export interface Course {
   id: number
   courseName: string
   location: string
-  courseType: CourseType
 }
 
 export interface Shooter {
@@ -43,7 +42,7 @@ export interface Round {
   roundDate: number
   courseId: number
   stationCount: number
-  /** Copied from the course when the round is created, so later course edits don't change old rounds. */
+  /** Chosen when the round is created. */
   courseType: CourseType
   /** true: first shooter rotates each station (A,B,C -> B,C,A ...). false: always A,B,C. */
   rotateShooters: boolean
@@ -118,5 +117,15 @@ db.version(2)
       s.lookCount ??= 0
       s.practiceCount ??= 0
       s.notes ??= ''
+    })
+  })
+
+// Version 3 (app v0.5.0): course type moved from the course to the round.
+// Rounds already have their own type; just remove the old value from courses.
+db.version(3)
+  .stores(STORES)
+  .upgrade(async (tx) => {
+    await tx.table('courses').toCollection().modify((c) => {
+      delete c.courseType
     })
   })

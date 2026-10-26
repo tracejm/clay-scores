@@ -289,11 +289,11 @@ function inFrame(): boolean {
 }
 
 /**
- * Email export.
- *  - "Email Round Results" is a real mailto: link. The phone hands it to the
- *    default mail app; the app page itself is never replaced.
- *  - "Share" opens the phone's share menu (Gmail, Messages, WhatsApp...).
- *  - "Show email text" displays the text with a Copy button.
+ * Sharing the results.
+ *  - "Share Round Results" opens the phone's share menu (Gmail, Messages,
+ *    WhatsApp...). Where there is no share menu it opens an email instead.
+ *  - "Email instead" is a mailto: link: a new email with subject and body filled in.
+ *  - "Show results text" displays the text with a Copy button.
  */
 function EmailExport({ email }: { email: { subject: string; body: string } }) {
   const framed = inFrame()
@@ -325,23 +325,27 @@ function EmailExport({ email }: { email: { subject: string; body: string } }) {
     <div className="email-export">
       {framed ? (
         <button className="btn btn-primary btn-xl" onClick={() => setOpen(true)}>
-          ✉ Email Round Results
+          Share Round Results
+        </button>
+      ) : canShare ? (
+        <button className="btn btn-primary btn-xl" onClick={share}>
+          Share Round Results
         </button>
       ) : (
         <a className="btn btn-primary btn-xl btn-link" href={mailtoUrl(email.subject, email.body)}>
-          ✉ Email Round Results
+          Share Round Results
         </a>
       )}
       {canShare && (
-        <button className="btn btn-secondary" onClick={share}>Share results…</button>
+        <a className="btn btn-secondary btn-link" href={mailtoUrl(email.subject, email.body)}>✉ Email instead</a>
       )}
-      {!open && <button className="btn btn-secondary" onClick={() => setOpen(true)}>Show email text</button>}
+      {!open && <button className="btn btn-secondary" onClick={() => setOpen(true)}>Show results text</button>}
       {open && (
         <section className="email-preview">
           {framed && (
             <p className="hint">
-              The test preview can't open your mail app. In the installed app this button opens a new email.
-              For now, copy the text below.
+              The test preview can't open other apps. In the installed app this button opens your phone's
+              share menu. For now, copy the text below.
             </p>
           )}
           <div className="actions">

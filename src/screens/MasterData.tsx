@@ -6,7 +6,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { saveCourse, saveShooter } from '../actions'
-import { COURSE_TYPE_LABEL, db, type CourseType, type Round } from '../db'
+import { db, type Round } from '../db'
 import { go } from '../router'
 import { Actions, ErrorBox, Field, Screen, TopBar, errorText } from '../ui'
 
@@ -46,7 +46,7 @@ export function ManageCourses() {
                 <button className="record" onClick={() => go.course(c.id)}>
                   <span className="record-main">
                     <span className="record-title">{c.courseName}</span>
-                    <span className="record-sub">{COURSE_TYPE_LABEL[c.courseType ?? 'SPORTING_CLAYS']} · {c.location || 'No location'} · {plural(c.rounds)}</span>
+                    <span className="record-sub">{c.location || 'No location'} · {plural(c.rounds)}</span>
                   </span>
                   <span className="record-edit">Edit ›</span>
                 </button>
@@ -63,7 +63,6 @@ export function EditCourse({ id }: { id?: number }) {
   const existing = useLiveQuery(async () => (id != null ? ((await db.courses.get(id)) ?? null) : null), [id])
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
-  const [courseType, setCourseType] = useState<CourseType>('SPORTING_CLAYS')
   const [error, setError] = useState<string | null>(null)
 
   // Fill the fields once the record has loaded.
@@ -71,14 +70,13 @@ export function EditCourse({ id }: { id?: number }) {
     if (existing) {
       setName(existing.courseName)
       setLocation(existing.location)
-      setCourseType(existing.courseType ?? 'SPORTING_CLAYS')
     }
   }, [existing])
 
   async function submit(e?: FormEvent) {
     e?.preventDefault()
     try {
-      await saveCourse(name, location, courseType, id)
+      await saveCourse(name, location, id)
       go.courses(true)
     } catch (err) {
       setError(errorText(err))
@@ -98,16 +96,7 @@ export function EditCourse({ id }: { id?: number }) {
           <Field label="Location">
             <input id="course-location" value={location} onChange={(e) => { setLocation(e.target.value); setError(null) }} placeholder="e.g. Granite Falls, WA" autoComplete="off" autoCapitalize="words" enterKeyHint="done" />
           </Field>
-          <Field label="Course type">
-            <select id="course-type" value={courseType} onChange={(e) => setCourseType(e.target.value as CourseType)}>
-              <option value="SPORTING_CLAYS">{COURSE_TYPE_LABEL.SPORTING_CLAYS}</option>
-              <option value="FIVE_STAND">{COURSE_TYPE_LABEL.FIVE_STAND}</option>
-            </select>
-          </Field>
-          {courseType === 'FIVE_STAND' && (
-            <p className="note">5-Stand rounds always have 5 stations of 5 targets, and shooters don't rotate.</p>
-          )}
-          {id != null && <p className="note">Name and location changes apply to every round at this course. Rounds already created keep their course type.</p>}
+          {id != null && <p className="note">Changes apply to every round at this course.</p>}
           <ErrorBox message={error} />
           <Actions>
             <button type="button" className="btn btn-secondary" onClick={() => go.courses(true)}>Cancel</button>

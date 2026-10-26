@@ -12,7 +12,7 @@ export class UserError extends Error {}
  * Create a course, or update one when `id` is given. Rounds point to the
  * course by id, so a correction shows up everywhere automatically.
  */
-export async function saveCourse(courseName: string, location: string, courseType: CourseType = 'SPORTING_CLAYS', id?: number): Promise<number> {
+export async function saveCourse(courseName: string, location: string, id?: number): Promise<number> {
   const name = courseName.trim().replace(/\s+/g, ' ')
   const loc = location.trim().replace(/\s+/g, ' ')
   if (!name) throw new UserError('Please enter a course name.')
@@ -21,11 +21,10 @@ export async function saveCourse(courseName: string, location: string, courseTyp
     .first()
   if (dup) throw new UserError(`"${name}" at "${loc || 'no location'}" already exists.`)
   if (id != null) {
-    // Existing rounds keep the type they were created with (stored on the round).
-    await db.courses.update(id, { courseName: name, location: loc, courseType })
+    await db.courses.update(id, { courseName: name, location: loc })
     return id
   }
-  return db.courses.add({ courseName: name, location: loc, courseType })
+  return db.courses.add({ courseName: name, location: loc })
 }
 
 /**
@@ -51,14 +50,15 @@ export interface NewRound {
   courseId: number | null
   roundDate: number | null
   stationCount: number
+  courseType: CourseType
   rotateShooters: boolean
   shooterIds: (number | null)[] // 5 slots
 }
 
 /**
  * Creates the round plus one station row per station. Returns the round id.
- * For a 5-Stand course the layout is fixed: 5 stations of 5 targets, no rotation,
- * and every station is ready to score immediately.
+ * For a 5-Stand round the layout is fixed: 5 stations of 5 targets, and every
+ * station is ready to score immediately. Rotation is the user's choice either way.
  */
 export async function createRound(input: NewRound): Promise<number> {
   if (input.courseId == null) throw new UserError('Please select a course.')
@@ -69,9 +69,8 @@ export async function createRound(input: NewRound): Promise<number> {
   const courseId = input.courseId
 
   return db.transaction('rw', db.courses, db.rounds, db.stations, db.targets, async () => {
-    const course = await db.courses.get(courseId)
-    if (!course) throw new UserError('Please select a course.')
-    const courseType = course.courseType ?? 'SPORTING_CLAYS'
+    if (!(await db.courses.get(courseId))) throw new UserError('Please select a course.')
+    const courseType = input.courseType ?? 'SPORTING_CLAYS'
     const fiveStand = isFiveStand(courseType)
     const stationCount = fiveStand ? FIVE_STAND.stations : input.stationCount
     const targetCount = fiveStand ? FIVE_STAND.targets : 0 // 0 = set at the station
@@ -86,7 +85,7 @@ export async function createRound(input: NewRound): Promise<number> {
       courseId,
       stationCount,
       courseType,
-      rotateShooters: fiveStand ? false : input.rotateShooters,
+      rotateShooters: input.rotateShooters,
       shooter1Id: s1!,
       shooter2Id: s2 ?? null,
       shooter3Id: s3 ?? null,

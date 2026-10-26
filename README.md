@@ -88,15 +88,17 @@ It follows your diagram, with two small adjustments:
   even-numbered on the bottom, `X` hit, `O` miss, `-` not recorded. Only stations
   with targets set are listed. Breakage lists stations with at least one broken target.
 
-### Added in v0.4.0
+### Added in v0.4.0 / v0.5.0
 
-- **Course Type** (Sporting Clays / 5-Stand) on each course. A 5-Stand round is always
-  5 stations × 5 targets with no rotation; the type is copied onto the round when it's created.
-- **Rotate shooters** checkbox on New Round (default on).
+- **Course Type** (Sporting Clays / 5-Stand) chosen on New Round, after the course. A 5-Stand
+  round is always 5 stations × 5 targets. (v0.4.0 had it on the course; v0.5.0 moved it to the round.)
+- **Rotate shooters** checkbox on New Round (default on), available for both course types.
+- **Share Round Results** button opens the phone's share menu, with **Email instead** for a
+  direct email draft.
 - **Look targets** and **Practice targets** per station, alongside Breakage. They're not scored.
 - **Notes** per station, listed at the end of the email.
-- The database moved to version 2. On first launch, saved data is upgraded in place
-  (old rounds keep rotating, counts start at 0). See `db.ts`.
+- The database moved to version 3. On first launch, saved data is upgraded in place
+  (old rounds keep rotating, counts start at 0, the type is removed from courses). See `db.ts`.
 
 ### Small additions beyond the spec
 

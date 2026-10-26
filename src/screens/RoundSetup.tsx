@@ -2,7 +2,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { createRound } from '../actions'
-import { COURSE_TYPE_LABEL, db } from '../db'
+import { COURSE_TYPE_LABEL, db, type CourseType } from '../db'
 import { DEFAULT_STATION_COUNT, FIVE_STAND, MAX_SQUAD, isFiveStand, toDateTimeInput, toMinute } from '../logic'
 import { go } from '../router'
 import { Actions, ErrorBox, Field, Screen, Stepper, TopBar, errorText } from '../ui'
@@ -17,6 +17,7 @@ export function NewRound() {
   const [courseId, setCourseId] = useState('')
   const [when, setWhen] = useState(() => toDateTimeInput(toMinute(Date.now())))
   const [stationCount, setStationCount] = useState(DEFAULT_STATION_COUNT)
+  const [courseType, setCourseType] = useState<CourseType>('SPORTING_CLAYS')
   const [rotate, setRotate] = useState(true)
   const [shooterIds, setShooterIds] = useState<string[]>(Array(MAX_SQUAD).fill(''))
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +29,7 @@ export function NewRound() {
         courseId: courseId ? Number(courseId) : null,
         roundDate: when ? new Date(when).getTime() : null,
         stationCount,
+        courseType,
         rotateShooters: rotate,
         shooterIds: shooterIds.map((s) => (s ? Number(s) : null)),
       })
@@ -38,8 +40,7 @@ export function NewRound() {
   }
 
   if (!courses || !shooters) return null
-  const course = courses.find((c) => String(c.id) === courseId)
-  const fiveStand = isFiveStand(course?.courseType)
+  const fiveStand = isFiveStand(courseType)
   const missing = courses.length === 0 ? 'course' : shooters.length === 0 ? 'shooter' : null
 
   return (
@@ -61,16 +62,21 @@ export function NewRound() {
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.location ? `${c.courseName} — ${c.location}` : c.courseName}
-                    {isFiveStand(c.courseType) ? ` (${COURSE_TYPE_LABEL.FIVE_STAND})` : ''}
                   </option>
                 ))}
+              </select>
+            </Field>
+            <Field label="Course type">
+              <select id="course-type" value={courseType} onChange={(e) => { setCourseType(e.target.value as CourseType); setError(null) }}>
+                <option value="SPORTING_CLAYS">{COURSE_TYPE_LABEL.SPORTING_CLAYS}</option>
+                <option value="FIVE_STAND">{COURSE_TYPE_LABEL.FIVE_STAND}</option>
               </select>
             </Field>
             <Field label="Date & time">
               <input type="datetime-local" value={when} onChange={(e) => { setWhen(e.target.value); setError(null) }} />
             </Field>
             {fiveStand && (
-              <p className="note">5-Stand: 5 stations of 5 targets, shooters don't rotate.</p>
+              <p className="note">5-Stand: always 5 stations of 5 targets.</p>
             )}
             <div className="field">
               <span className="field-label">Stations</span>
@@ -80,17 +86,16 @@ export function NewRound() {
                 <Stepper label="stations" value={stationCount} min={1} max={30} onChange={setStationCount} />
               )}
             </div>
-            <label className={`check ${fiveStand ? 'check-locked' : ''}`}>
+            <label className="check">
               <input
                 type="checkbox"
                 id="rotate-shooters"
-                checked={fiveStand ? false : rotate}
-                disabled={fiveStand}
+                checked={rotate}
                 onChange={(e) => setRotate(e.target.checked)}
               />
               <span>
                 Rotate shooters at each station
-                <small>{(fiveStand ? false : rotate) ? 'First shooter changes each station (A,B,C → B,C,A …)' : 'Same order at every station (A,B,C)'}</small>
+                <small>{rotate ? 'First shooter changes each station (A,B,C → B,C,A …)' : 'Same order at every station (A,B,C)'}</small>
               </span>
             </label>
             {shooterIds.map((sid, i) => (
